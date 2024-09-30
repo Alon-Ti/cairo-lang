@@ -189,3 +189,24 @@ pytest_test(
         requirement("marshmallow_dataclass"),
     ],
 )
+
+pytest_test(
+    name = "instruction_builder_test",
+    srcs = [
+        "instruction_builder_test.py",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":cairo_compile_lib",
+        ":cairo_compile_test_utils_lib",
+        "//src/starkware/cairo/lang:cairo_constants_lib",
+        "//src/starkware/cairo/lang/vm:cairo_vm_test_utils_lib",
+        "//src/starkware/python:starkware_python_test_utils_lib",
+        "//src/starkware/python:starkware_python_utils_lib",
+        "//src/starkware/starkware_utils:starkware_dataclasses_utils_lib",
+        requirement("marshmallow_dataclass"),
+        requirement("idna"),
+        requirement("urllib3"),
+        requirement("certifi"),
+    ],
+)

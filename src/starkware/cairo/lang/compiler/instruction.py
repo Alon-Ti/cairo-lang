@@ -1,6 +1,6 @@
 import dataclasses
 from enum import Enum, auto
-from typing import Optional
+from typing import Optional, List
 
 OFFSET_BITS = 16
 N_FLAGS = 15
@@ -27,16 +27,8 @@ class BytecodeData(BytecodeElement):
 
 @dataclasses.dataclass
 class M31Instruction(BytecodeElement):
-    class M31Opcode(Enum):
-        NOP = 0
-        ASSERT_EQ = auto()
-        CALL = auto()
-        RET = auto()
-        
-    opcode: M31Opcode
-    off0: int
-    off1: int
-    off2: int
+    opcode: str
+    operands: List[int]
 
 
 

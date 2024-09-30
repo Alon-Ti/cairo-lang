@@ -1,7 +1,7 @@
 import pytest
 
 from starkware.cairo.lang.compiler.error_handling import get_location_marks
-from starkware.cairo.lang.compiler.instruction import BytecodeElement, Instruction, Register
+from starkware.cairo.lang.compiler.instruction import BytecodeElement, M31Instruction, Register
 from starkware.cairo.lang.compiler.instruction_builder import (
     InstructionBuilderError,
     build_instruction,
@@ -17,47 +17,14 @@ def parse_and_build(inst: str) -> BytecodeElement:
 
 
 def test_assert_eq():
-    assert parse_and_build("[ap] = [fp], ap++") == Instruction(
-        off0=0,
-        off1=-1,
-        off2=0,
-        imm=None,
-        dst_register=Register.AP,
-        op0_register=Register.FP,
-        op1_addr=Instruction.Op1Addr.FP,
-        res=Instruction.Res.OP1,
-        pc_update=Instruction.PcUpdate.REGULAR,
-        ap_update=Instruction.ApUpdate.ADD1,
-        fp_update=Instruction.FpUpdate.REGULAR,
-        opcode=Instruction.Opcode.ASSERT_EQ,
+    assert parse_and_build("[ap] = [fp], ap++") == M31Instruction(
+        opcode="assert_ap_deref_fp_appp", operands=[0, 0]
     )
-    assert parse_and_build("[fp - 3] = [fp + 7]") == Instruction(
-        off0=-3,
-        off1=-1,
-        off2=7,
-        imm=None,
-        dst_register=Register.FP,
-        op0_register=Register.FP,
-        op1_addr=Instruction.Op1Addr.FP,
-        res=Instruction.Res.OP1,
-        pc_update=Instruction.PcUpdate.REGULAR,
-        ap_update=Instruction.ApUpdate.REGULAR,
-        fp_update=Instruction.FpUpdate.REGULAR,
-        opcode=Instruction.Opcode.ASSERT_EQ,
+    assert parse_and_build("[fp - 3] = [fp + 7]") == M31Instruction(
+        opcode="assert_fp_deref_fp", operands=[-3, 7]
     )
-    assert parse_and_build("[ap - 3] = [ap]") == Instruction(
-        off0=-3,
-        off1=-1,
-        off2=0,
-        imm=None,
-        dst_register=Register.AP,
-        op0_register=Register.FP,
-        op1_addr=Instruction.Op1Addr.AP,
-        res=Instruction.Res.OP1,
-        pc_update=Instruction.PcUpdate.REGULAR,
-        ap_update=Instruction.ApUpdate.REGULAR,
-        fp_update=Instruction.FpUpdate.REGULAR,
-        opcode=Instruction.Opcode.ASSERT_EQ,
+    assert parse_and_build("[ap - 3] = [ap]") == M31Instruction(
+        opcode="assert_ap_deref_ap", operands=[-3, 0]
     )
 
 
@@ -131,33 +98,11 @@ Expected a register. Found: [ap + 1].
 
 
 def test_assert_eq_double_dereference():
-    assert parse_and_build("[ap + 2] = [[fp]]") == Instruction(
-        off0=2,
-        off1=0,
-        off2=0,
-        imm=None,
-        dst_register=Register.AP,
-        op0_register=Register.FP,
-        op1_addr=Instruction.Op1Addr.OP0,
-        res=Instruction.Res.OP1,
-        pc_update=Instruction.PcUpdate.REGULAR,
-        ap_update=Instruction.ApUpdate.REGULAR,
-        fp_update=Instruction.FpUpdate.REGULAR,
-        opcode=Instruction.Opcode.ASSERT_EQ,
+    assert parse_and_build("[ap + 2] = [[fp]]") == M31Instruction(
+        opcode="assert_ap_double_deref_fp", operands=[2, 0, 0]
     )
-    assert parse_and_build("[ap + 2] = [[ap - 4] + 7], ap++") == Instruction(
-        off0=2,
-        off1=-4,
-        off2=7,
-        imm=None,
-        dst_register=Register.AP,
-        op0_register=Register.AP,
-        op1_addr=Instruction.Op1Addr.OP0,
-        res=Instruction.Res.OP1,
-        pc_update=Instruction.PcUpdate.REGULAR,
-        ap_update=Instruction.ApUpdate.ADD1,
-        fp_update=Instruction.FpUpdate.REGULAR,
-        opcode=Instruction.Opcode.ASSERT_EQ,
+    assert parse_and_build("[ap + 2] = [[ap - 4] + 7], ap++") == M31Instruction(
+        opcode="assert_ap_double_deref_ap_appp", operands=[2, -4, 7]
     )
 
 
@@ -179,64 +124,20 @@ Expected '+' or '-', found: '*'.
 
 
 def test_assert_eq_imm():
-    assert parse_and_build("[ap + 2] = 1234567890") == Instruction(
-        off0=2,
-        off1=-1,
-        off2=1,
-        imm=1234567890,
-        dst_register=Register.AP,
-        op0_register=Register.FP,
-        op1_addr=Instruction.Op1Addr.IMM,
-        res=Instruction.Res.OP1,
-        pc_update=Instruction.PcUpdate.REGULAR,
-        ap_update=Instruction.ApUpdate.REGULAR,
-        fp_update=Instruction.FpUpdate.REGULAR,
-        opcode=Instruction.Opcode.ASSERT_EQ,
+    assert parse_and_build("[ap + 2] = 1234567890") == M31Instruction(
+        opcode="assert_ap_imm", operands=[2, 1234567890]
     )
 
 
 def test_assert_eq_operation():
-    assert parse_and_build("[ap + 1] = [ap - 7] * [fp + 3]") == Instruction(
-        off0=1,
-        off1=-7,
-        off2=3,
-        imm=None,
-        dst_register=Register.AP,
-        op0_register=Register.AP,
-        op1_addr=Instruction.Op1Addr.FP,
-        res=Instruction.Res.MUL,
-        pc_update=Instruction.PcUpdate.REGULAR,
-        ap_update=Instruction.ApUpdate.REGULAR,
-        fp_update=Instruction.FpUpdate.REGULAR,
-        opcode=Instruction.Opcode.ASSERT_EQ,
+    assert parse_and_build("[ap + 1] = [ap - 7] * [fp + 3]") == M31Instruction(
+        opcode="assert_ap_mul_ap_fp", operands=[1, -7, 3]
     )
-    assert parse_and_build("[ap + 10] = [fp] + 1234567890") == Instruction(
-        off0=10,
-        off1=0,
-        off2=1,
-        imm=1234567890,
-        dst_register=Register.AP,
-        op0_register=Register.FP,
-        op1_addr=Instruction.Op1Addr.IMM,
-        res=Instruction.Res.ADD,
-        pc_update=Instruction.PcUpdate.REGULAR,
-        ap_update=Instruction.ApUpdate.REGULAR,
-        fp_update=Instruction.FpUpdate.REGULAR,
-        opcode=Instruction.Opcode.ASSERT_EQ,
+    assert parse_and_build("[ap + 10] = [fp] + 1234567890") == M31Instruction(
+        opcode="assert_ap_add_imm_fp", operands=[10, 0, 1234567890]
     )
-    assert parse_and_build("[fp - 3] = [ap + 7] * [ap + 8]") == Instruction(
-        off0=-3,
-        off1=7,
-        off2=8,
-        imm=None,
-        dst_register=Register.FP,
-        op0_register=Register.AP,
-        op1_addr=Instruction.Op1Addr.AP,
-        res=Instruction.Res.MUL,
-        pc_update=Instruction.PcUpdate.REGULAR,
-        ap_update=Instruction.ApUpdate.REGULAR,
-        fp_update=Instruction.FpUpdate.REGULAR,
-        opcode=Instruction.Opcode.ASSERT_EQ,
+    assert parse_and_build("[fp - 3] = [ap + 7] * [ap + 8]") == M31Instruction(
+        opcode="assert_fp_mul_ap_ap", operands=[-3, 7, 8]
     )
 
 
@@ -306,92 +207,26 @@ Expected a constant expression or a dereference expression.
 
 
 def test_jump_instruction():
-    assert parse_and_build("jmp rel [ap + 1] + [fp - 7]") == Instruction(
-        off0=-1,
-        off1=1,
-        off2=-7,
-        imm=None,
-        dst_register=Register.FP,
-        op0_register=Register.AP,
-        op1_addr=Instruction.Op1Addr.FP,
-        res=Instruction.Res.ADD,
-        pc_update=Instruction.PcUpdate.JUMP_REL,
-        ap_update=Instruction.ApUpdate.REGULAR,
-        fp_update=Instruction.FpUpdate.REGULAR,
-        opcode=Instruction.Opcode.NOP,
+    assert parse_and_build("jmp rel [ap + 1] + [fp - 7]") == M31Instruction(
+        opcode="jmp_rel_add_ap_fp", operands=[1, -7]
     )
-    assert parse_and_build("jmp abs 123, ap++") == Instruction(
-        off0=-1,
-        off1=-1,
-        off2=1,
-        imm=123,
-        dst_register=Register.FP,
-        op0_register=Register.FP,
-        op1_addr=Instruction.Op1Addr.IMM,
-        res=Instruction.Res.OP1,
-        pc_update=Instruction.PcUpdate.JUMP,
-        ap_update=Instruction.ApUpdate.ADD1,
-        fp_update=Instruction.FpUpdate.REGULAR,
-        opcode=Instruction.Opcode.NOP,
+    assert parse_and_build("jmp abs 123, ap++") == M31Instruction(
+        opcode="jmp_abs_imm_appp", operands=[123]
     )
-    assert parse_and_build("jmp rel [ap + 1] + [ap - 7]") == Instruction(
-        off0=-1,
-        off1=1,
-        off2=-7,
-        imm=None,
-        dst_register=Register.FP,
-        op0_register=Register.AP,
-        op1_addr=Instruction.Op1Addr.AP,
-        res=Instruction.Res.ADD,
-        pc_update=Instruction.PcUpdate.JUMP_REL,
-        ap_update=Instruction.ApUpdate.REGULAR,
-        fp_update=Instruction.FpUpdate.REGULAR,
-        opcode=Instruction.Opcode.NOP,
+    assert parse_and_build("jmp rel [ap + 1] + [ap - 7]") == M31Instruction(
+        opcode="jmp_rel_add_ap_ap", operands=[1, -7]
     )
 
 
 def test_jnz_instruction():
-    assert parse_and_build("jmp rel [fp - 1] if [fp - 7] != 0") == Instruction(
-        off0=-7,
-        off1=-1,
-        off2=-1,
-        imm=None,
-        dst_register=Register.FP,
-        op0_register=Register.FP,
-        op1_addr=Instruction.Op1Addr.FP,
-        res=Instruction.Res.UNCONSTRAINED,
-        pc_update=Instruction.PcUpdate.JNZ,
-        ap_update=Instruction.ApUpdate.REGULAR,
-        fp_update=Instruction.FpUpdate.REGULAR,
-        opcode=Instruction.Opcode.NOP,
+    assert parse_and_build("jmp rel [fp - 1] if [fp - 7] != 0") == M31Instruction(
+        opcode="jnz_fp_fp", operands=[-1, -7]
     )
-    assert parse_and_build("jmp rel [ap - 1] if [fp - 7] != 0") == Instruction(
-        off0=-7,
-        off1=-1,
-        off2=-1,
-        imm=None,
-        dst_register=Register.FP,
-        op0_register=Register.FP,
-        op1_addr=Instruction.Op1Addr.AP,
-        res=Instruction.Res.UNCONSTRAINED,
-        pc_update=Instruction.PcUpdate.JNZ,
-        ap_update=Instruction.ApUpdate.REGULAR,
-        fp_update=Instruction.FpUpdate.REGULAR,
-        opcode=Instruction.Opcode.NOP,
+    assert parse_and_build("jmp rel [ap - 1] if [fp - 7] != 0") == M31Instruction(
+        opcode="jnz_ap_fp", operands=[-1, -7]
     )
-    assert parse_and_build("jmp rel 123 if [ap] != 0, ap++") == Instruction(
-        off0=0,
-        off1=-1,
-        off2=1,
-        imm=123,
-        dst_register=Register.AP,
-        op0_register=Register.FP,
-        op1_addr=Instruction.Op1Addr.IMM,
-        res=Instruction.Res.UNCONSTRAINED,
-        pc_update=Instruction.PcUpdate.JNZ,
-        ap_update=Instruction.ApUpdate.ADD1,
-        fp_update=Instruction.FpUpdate.REGULAR,
-        opcode=Instruction.Opcode.NOP,
+    assert parse_and_build("jmp rel 123 if [ap] != 0, ap++") == M31Instruction(
+        opcode="jnz_imm_ap_appp", operands=[123, 0]
     )
 
 
@@ -427,62 +262,18 @@ Invalid expression for jmp offset.
 
 
 def test_call_instruction():
-    assert parse_and_build("call abs [fp + 4]") == Instruction(
-        off0=0,
-        off1=1,
-        off2=4,
-        imm=None,
-        dst_register=Register.AP,
-        op0_register=Register.AP,
-        op1_addr=Instruction.Op1Addr.FP,
-        res=Instruction.Res.OP1,
-        pc_update=Instruction.PcUpdate.JUMP,
-        ap_update=Instruction.ApUpdate.ADD2,
-        fp_update=Instruction.FpUpdate.AP_PLUS2,
-        opcode=Instruction.Opcode.CALL,
+    assert parse_and_build("call abs [fp + 4]") == M31Instruction(
+        opcode="call_abs_fp", operands=[4]
     )
 
-    assert parse_and_build("call rel [fp + 4]") == Instruction(
-        off0=0,
-        off1=1,
-        off2=4,
-        imm=None,
-        dst_register=Register.AP,
-        op0_register=Register.AP,
-        op1_addr=Instruction.Op1Addr.FP,
-        res=Instruction.Res.OP1,
-        pc_update=Instruction.PcUpdate.JUMP_REL,
-        ap_update=Instruction.ApUpdate.ADD2,
-        fp_update=Instruction.FpUpdate.AP_PLUS2,
-        opcode=Instruction.Opcode.CALL,
+    assert parse_and_build("call rel [fp + 4]") == M31Instruction(
+        opcode="call_rel_fp", operands=[4]
     )
-    assert parse_and_build("call rel [ap + 4]") == Instruction(
-        off0=0,
-        off1=1,
-        off2=4,
-        imm=None,
-        dst_register=Register.AP,
-        op0_register=Register.AP,
-        op1_addr=Instruction.Op1Addr.AP,
-        res=Instruction.Res.OP1,
-        pc_update=Instruction.PcUpdate.JUMP_REL,
-        ap_update=Instruction.ApUpdate.ADD2,
-        fp_update=Instruction.FpUpdate.AP_PLUS2,
-        opcode=Instruction.Opcode.CALL,
+    assert parse_and_build("call rel [ap + 4]") == M31Instruction(
+        opcode="call_rel_ap", operands=[4]
     )
-    assert parse_and_build("call rel 123") == Instruction(
-        off0=0,
-        off1=1,
-        off2=1,
-        imm=123,
-        dst_register=Register.AP,
-        op0_register=Register.AP,
-        op1_addr=Instruction.Op1Addr.IMM,
-        res=Instruction.Res.OP1,
-        pc_update=Instruction.PcUpdate.JUMP_REL,
-        ap_update=Instruction.ApUpdate.ADD2,
-        fp_update=Instruction.FpUpdate.AP_PLUS2,
-        opcode=Instruction.Opcode.CALL,
+    assert parse_and_build("call rel 123") == M31Instruction(
+        opcode="call_rel_imm", operands=[123]
     )
 
 
@@ -504,19 +295,8 @@ ap++ may not be used with the call opcode.
 
 
 def test_ret_instruction():
-    assert parse_and_build("ret") == Instruction(
-        off0=-2,
-        off1=-1,
-        off2=-1,
-        imm=None,
-        dst_register=Register.FP,
-        op0_register=Register.FP,
-        op1_addr=Instruction.Op1Addr.FP,
-        res=Instruction.Res.OP1,
-        pc_update=Instruction.PcUpdate.JUMP,
-        ap_update=Instruction.ApUpdate.REGULAR,
-        fp_update=Instruction.FpUpdate.DST,
-        opcode=Instruction.Opcode.RET,
+    assert parse_and_build("ret") == M31Instruction(
+        opcode="ret", operands=[]
     )
 
 
@@ -531,47 +311,14 @@ ap++ may not be used with the ret opcode.
 
 
 def test_addap_instruction():
-    assert parse_and_build("ap += [fp + 4] + [fp]") == Instruction(
-        off0=-1,
-        off1=4,
-        off2=0,
-        imm=None,
-        dst_register=Register.FP,
-        op0_register=Register.FP,
-        op1_addr=Instruction.Op1Addr.FP,
-        res=Instruction.Res.ADD,
-        pc_update=Instruction.PcUpdate.REGULAR,
-        ap_update=Instruction.ApUpdate.ADD,
-        fp_update=Instruction.FpUpdate.REGULAR,
-        opcode=Instruction.Opcode.NOP,
+    assert parse_and_build("ap += [fp + 4] + [fp]") == M31Instruction(
+        opcode="addap_add_fp_fp", operands=[4, 0]
     )
-    assert parse_and_build("ap += [ap + 4] + [ap]") == Instruction(
-        off0=-1,
-        off1=4,
-        off2=0,
-        imm=None,
-        dst_register=Register.FP,
-        op0_register=Register.AP,
-        op1_addr=Instruction.Op1Addr.AP,
-        res=Instruction.Res.ADD,
-        pc_update=Instruction.PcUpdate.REGULAR,
-        ap_update=Instruction.ApUpdate.ADD,
-        fp_update=Instruction.FpUpdate.REGULAR,
-        opcode=Instruction.Opcode.NOP,
+    assert parse_and_build("ap += [ap + 4] + [ap]") == M31Instruction(
+        opcode="addap_add_ap_ap", operands=[4, 0]
     )
-    assert parse_and_build("ap += 123") == Instruction(
-        off0=-1,
-        off1=-1,
-        off2=1,
-        imm=123,
-        dst_register=Register.FP,
-        op0_register=Register.FP,
-        op1_addr=Instruction.Op1Addr.IMM,
-        res=Instruction.Res.OP1,
-        pc_update=Instruction.PcUpdate.REGULAR,
-        ap_update=Instruction.ApUpdate.ADD,
-        fp_update=Instruction.FpUpdate.REGULAR,
-        opcode=Instruction.Opcode.NOP,
+    assert parse_and_build("ap += 123") == M31Instruction(
+        opcode="addap_imm", operands=[123]
     )
 
 
