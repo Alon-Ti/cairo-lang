@@ -25,6 +25,20 @@ class BytecodeData(BytecodeElement):
     def size(self):
         return 1
 
+@dataclasses.dataclass
+class M31Instruction(BytecodeElement):
+    class M31Opcode(Enum):
+        NOP = 0
+        ASSERT_EQ = auto()
+        CALL = auto()
+        RET = auto()
+        
+    opcode: M31Opcode
+    off0: int
+    off1: int
+    off2: int
+
+
 
 @dataclasses.dataclass
 class Instruction(BytecodeElement):

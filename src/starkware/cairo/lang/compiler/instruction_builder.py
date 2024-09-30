@@ -1,5 +1,5 @@
 import dataclasses
-from typing import Optional, Tuple, cast
+from typing import Optional, Tuple, cast, Union
 
 from starkware.cairo.lang.compiler.ast.expr import (
     ExprConst,
@@ -26,7 +26,7 @@ from starkware.cairo.lang.compiler.instruction import (
     OFFSET_BITS,
     BytecodeData,
     BytecodeElement,
-    Instruction,
+    M31Instruction,
     Register,
 )
 
@@ -108,9 +108,9 @@ def _apply_inverse_syntactic_sugar(instruction_ast: AssertEqInstruction) -> Asse
     return instruction_ast
 
 
-def _build_assert_eq_instruction(instruction_ast: InstructionAst) -> Instruction:
+def _build_assert_eq_instruction(instruction_ast: InstructionAst) -> M31Instruction:
     """
-    Builds an Instruction object from the AST object, assuming the instruction is of type AssertEq.
+    Builds an M31Instruction object from the AST object, assuming the instruction is of type AssertEq.
     If a = b is not a valid Cairo instruction, it will try to write it as b = a. For example,
     "[[ap]] = [fp]" is supported even though its operands are reversed in the bytecode.
     """
@@ -137,9 +137,9 @@ def _build_assert_eq_instruction(instruction_ast: InstructionAst) -> Instruction
         raise exc from None
 
 
-def _build_assert_eq_instruction_inner(instruction_ast: InstructionAst) -> Instruction:
+def _build_assert_eq_instruction_inner(instruction_ast: InstructionAst) -> M31Instruction:
     """
-    Builds an Instruction object from the AST object, assuming the instruction is of type AssertEq.
+    Builds an M31Instruction object from the AST object, assuming the instruction is of type AssertEq.
     """
     instruction_body: AssertEqInstruction = cast(AssertEqInstruction, instruction_ast.body)
 
@@ -151,10 +151,10 @@ def _build_assert_eq_instruction_inner(instruction_ast: InstructionAst) -> Instr
     res_desc = _parse_res(instruction_body.b)
 
     ap_update = (
-        Instruction.ApUpdate.ADD1 if instruction_ast.inc_ap else Instruction.ApUpdate.REGULAR
+        M31Instruction.ApUpdate.ADD1 if instruction_ast.inc_ap else M31Instruction.ApUpdate.REGULAR
     )
 
-    return Instruction(
+    return M31Instruction(
         off0=off0,
         off1=res_desc.off1,
         off2=res_desc.off2,
@@ -163,29 +163,29 @@ def _build_assert_eq_instruction_inner(instruction_ast: InstructionAst) -> Instr
         op0_register=res_desc.op0_register,
         op1_addr=res_desc.op1_addr,
         res=res_desc.res,
-        pc_update=Instruction.PcUpdate.REGULAR,
+        pc_update=M31Instruction.PcUpdate.REGULAR,
         ap_update=ap_update,
-        fp_update=Instruction.FpUpdate.REGULAR,
-        opcode=Instruction.Opcode.ASSERT_EQ,
+        fp_update=M31Instruction.FpUpdate.REGULAR,
+        opcode=M31Instruction.Opcode.ASSERT_EQ,
     )
 
 
-def _build_jump_instruction(instruction_ast: InstructionAst) -> Instruction:
+def _build_jump_instruction(instruction_ast: InstructionAst) -> M31Instruction:
     """
-    Builds an Instruction object from the AST object, assuming the instruction is a JumpInstruction.
+    Builds an M31Instruction object from the AST object, assuming the instruction is a JumpInstruction.
     """
     instruction_body: JumpInstruction = cast(JumpInstruction, instruction_ast.body)
 
     res_desc = _parse_res(instruction_body.val)
 
     ap_update = (
-        Instruction.ApUpdate.ADD1 if instruction_ast.inc_ap else Instruction.ApUpdate.REGULAR
+        M31Instruction.ApUpdate.ADD1 if instruction_ast.inc_ap else M31Instruction.ApUpdate.REGULAR
     )
     pc_update = (
-        Instruction.PcUpdate.JUMP_REL if instruction_body.relative else Instruction.PcUpdate.JUMP
+        M31Instruction.PcUpdate.JUMP_REL if instruction_body.relative else M31Instruction.PcUpdate.JUMP
     )
 
-    return Instruction(
+    return M31Instruction(
         # In this case dst is not involved. Choose [fp - 1] as the default.
         off0=-1,
         off1=res_desc.off1,
@@ -197,14 +197,14 @@ def _build_jump_instruction(instruction_ast: InstructionAst) -> Instruction:
         res=res_desc.res,
         pc_update=pc_update,
         ap_update=ap_update,
-        fp_update=Instruction.FpUpdate.REGULAR,
-        opcode=Instruction.Opcode.NOP,
+        fp_update=M31Instruction.FpUpdate.REGULAR,
+        opcode=M31Instruction.Opcode.NOP,
     )
 
 
-def _build_jnz_instruction(instruction_ast: InstructionAst) -> Instruction:
+def _build_jnz_instruction(instruction_ast: InstructionAst) -> M31Instruction:
     """
-    Builds an Instruction object from the AST object, assuming the instruction is a JnzInstruction.
+    Builds an M31Instruction object from the AST object, assuming the instruction is a JnzInstruction.
     """
     instruction_body: JnzInstruction = cast(JnzInstruction, instruction_ast.body)
 
@@ -215,21 +215,21 @@ def _build_jnz_instruction(instruction_ast: InstructionAst) -> Instruction:
     if isinstance(jump_offset, ExprDeref):
         op1_reg, off2 = _parse_register_offset(jump_offset.addr)
         imm = None
-        op1_addr = Instruction.Op1Addr.FP if op1_reg is Register.FP else Instruction.Op1Addr.AP
+        op1_addr = M31Instruction.Op1Addr.FP if op1_reg is Register.FP else M31Instruction.Op1Addr.AP
     elif isinstance(jump_offset, ExprConst):
         off2 = 1
         imm = jump_offset.val
-        op1_addr = Instruction.Op1Addr.IMM
+        op1_addr = M31Instruction.Op1Addr.IMM
     else:
         raise InstructionBuilderError(
             "Invalid expression for jmp offset.", location=jump_offset.location
         )
 
     ap_update = (
-        Instruction.ApUpdate.ADD1 if instruction_ast.inc_ap else Instruction.ApUpdate.REGULAR
+        M31Instruction.ApUpdate.ADD1 if instruction_ast.inc_ap else M31Instruction.ApUpdate.REGULAR
     )
 
-    return Instruction(
+    return M31Instruction(
         off0=off0,
         # In this case op0 is not involved. Choose[fp - 1] as the default.
         off1=-1,
@@ -238,17 +238,17 @@ def _build_jnz_instruction(instruction_ast: InstructionAst) -> Instruction:
         dst_register=dst_register,
         op0_register=Register.FP,
         op1_addr=op1_addr,
-        res=Instruction.Res.UNCONSTRAINED,
-        pc_update=Instruction.PcUpdate.JNZ,
+        res=M31Instruction.Res.UNCONSTRAINED,
+        pc_update=M31Instruction.PcUpdate.JNZ,
         ap_update=ap_update,
-        fp_update=Instruction.FpUpdate.REGULAR,
-        opcode=Instruction.Opcode.NOP,
+        fp_update=M31Instruction.FpUpdate.REGULAR,
+        opcode=M31Instruction.Opcode.NOP,
     )
 
 
-def _build_call_instruction(instruction_ast: InstructionAst) -> Instruction:
+def _build_call_instruction(instruction_ast: InstructionAst) -> M31Instruction:
     """
-    Builds an Instruction object from the AST object, assuming the instruction is a CallInstruction.
+    Builds an M31Instruction object from the AST object, assuming the instruction is a CallInstruction.
     """
     instruction_body: CallInstruction = cast(CallInstruction, instruction_ast.body)
 
@@ -256,11 +256,11 @@ def _build_call_instruction(instruction_ast: InstructionAst) -> Instruction:
     if isinstance(val, ExprDeref):
         op1_reg, off2 = _parse_register_offset(val.addr)
         imm = None
-        op1_addr = Instruction.Op1Addr.FP if op1_reg is Register.FP else Instruction.Op1Addr.AP
+        op1_addr = M31Instruction.Op1Addr.FP if op1_reg is Register.FP else M31Instruction.Op1Addr.AP
     elif isinstance(val, ExprConst):
         off2 = 1
         imm = val.val
-        op1_addr = Instruction.Op1Addr.IMM
+        op1_addr = M31Instruction.Op1Addr.IMM
     else:
         raise InstructionBuilderError("Invalid offset for call.", location=val.location)
 
@@ -270,10 +270,10 @@ def _build_call_instruction(instruction_ast: InstructionAst) -> Instruction:
         )
 
     pc_update = (
-        Instruction.PcUpdate.JUMP_REL if instruction_body.relative else Instruction.PcUpdate.JUMP
+        M31Instruction.PcUpdate.JUMP_REL if instruction_body.relative else M31Instruction.PcUpdate.JUMP
     )
 
-    return Instruction(
+    return M31Instruction(
         # Use dst for [ap] <- fp.
         off0=0,
         # Use op0 for [ap + 1] <- pc.
@@ -284,17 +284,17 @@ def _build_call_instruction(instruction_ast: InstructionAst) -> Instruction:
         dst_register=Register.AP,
         op0_register=Register.AP,
         op1_addr=op1_addr,
-        res=Instruction.Res.OP1,
+        res=M31Instruction.Res.OP1,
         pc_update=pc_update,
-        ap_update=Instruction.ApUpdate.ADD2,
-        fp_update=Instruction.FpUpdate.AP_PLUS2,
-        opcode=Instruction.Opcode.CALL,
+        ap_update=M31Instruction.ApUpdate.ADD2,
+        fp_update=M31Instruction.FpUpdate.AP_PLUS2,
+        opcode=M31Instruction.Opcode.CALL,
     )
 
 
-def _build_ret_instruction(instruction_ast: InstructionAst) -> Instruction:
+def _build_ret_instruction(instruction_ast: InstructionAst) -> M31Instruction:
     """
-    Builds an Instruction object from the AST object, assuming the instruction is a RetInstruction.
+    Builds an M31Instruction object from the AST object, assuming the instruction is a RetInstruction.
     """
 
     if instruction_ast.inc_ap:
@@ -302,7 +302,7 @@ def _build_ret_instruction(instruction_ast: InstructionAst) -> Instruction:
             "ap++ may not be used with the ret opcode.", location=instruction_ast.location
         )
 
-    return Instruction(
+    return M31Instruction(
         # Use dst for fp <- [fp - 2].
         off0=-2,
         # In this case op0 is not involved. Choose[fp - 1] as the default.
@@ -312,18 +312,18 @@ def _build_ret_instruction(instruction_ast: InstructionAst) -> Instruction:
         imm=None,
         dst_register=Register.FP,
         op0_register=Register.FP,
-        op1_addr=Instruction.Op1Addr.FP,
-        res=Instruction.Res.OP1,
-        pc_update=Instruction.PcUpdate.JUMP,
-        ap_update=Instruction.ApUpdate.REGULAR,
-        fp_update=Instruction.FpUpdate.DST,
-        opcode=Instruction.Opcode.RET,
+        op1_addr=M31Instruction.Op1Addr.FP,
+        res=M31Instruction.Res.OP1,
+        pc_update=M31Instruction.PcUpdate.JUMP,
+        ap_update=M31Instruction.ApUpdate.REGULAR,
+        fp_update=M31Instruction.FpUpdate.DST,
+        opcode=M31Instruction.Opcode.RET,
     )
 
 
-def _build_addap_instruction(instruction_ast: InstructionAst) -> Instruction:
+def _build_addap_instruction(instruction_ast: InstructionAst) -> M31Instruction:
     """
-    Builds an Instruction object from the AST object, assuming the instruction is an
+    Builds an M31Instruction object from the AST object, assuming the instruction is an
     AddApInstruction.
     """
     instruction_body: AddApInstruction = cast(AddApInstruction, instruction_ast.body)
@@ -335,7 +335,7 @@ def _build_addap_instruction(instruction_ast: InstructionAst) -> Instruction:
             "ap++ may not be used with the addap opcode.", location=instruction_ast.location
         )
 
-    return Instruction(
+    return M31Instruction(
         # In this case dst is not involved. Choose [fp - 1] as the default.
         off0=-1,
         off1=res_desc.off1,
@@ -345,10 +345,10 @@ def _build_addap_instruction(instruction_ast: InstructionAst) -> Instruction:
         op0_register=res_desc.op0_register,
         op1_addr=res_desc.op1_addr,
         res=res_desc.res,
-        pc_update=Instruction.PcUpdate.REGULAR,
-        ap_update=Instruction.ApUpdate.ADD,
-        fp_update=Instruction.FpUpdate.REGULAR,
-        opcode=Instruction.Opcode.NOP,
+        pc_update=M31Instruction.PcUpdate.REGULAR,
+        ap_update=M31Instruction.ApUpdate.ADD,
+        fp_update=M31Instruction.FpUpdate.REGULAR,
+        opcode=M31Instruction.Opcode.NOP,
     )
 
 
@@ -372,18 +372,87 @@ def _build_data_word(instruction_ast: InstructionAst) -> BytecodeData:
     return BytecodeData(data=instruction_body.expr.val)
 
 
-@dataclasses.dataclass
-class ResDescription:
-    """
-    A subset of the fields of Instruction that is required to describe the value of the res operand.
-    """
+def reg2str(reg: Register) -> str:
+    return "fp" if reg is Register.FP else "ap"
 
-    off1: int
-    off2: int
-    imm: Optional[int]
-    op0_register: Register
-    op1_addr: Instruction.Op1Addr
-    res: Instruction.Res
+"""
+Classes that describe the various res operands. Each class has a `suffix_and_nums` method
+that returns (`suffix`, `nums`) where `suffix` is a string that describes the operand and
+`nums` are its parameters.
+"""
+@dataclasses.dataclass
+class ResImm:
+    " = C"
+    imm: int
+    
+    def suffix_and_nums(self):
+        return "imm", [self.imm]
+
+@dataclasses.dataclass
+class ResDeref:
+    " = [reg + off]"
+    off: int
+    reg: Register
+
+    def suffix_and_nums(self):
+        return f"deref_{reg2str(self.reg)}", [self.off]
+
+@dataclasses.dataclass
+class ResDoubleDeref:
+    " = [[reg + inner] + outer]"
+    inner: int
+    outer: int
+    reg: Register
+
+    def suffix_and_nums(self):
+        return f"double_deref_{reg2str(self.reg)}", [self.inner, self.outer]
+
+@dataclasses.dataclass
+class ResAdd:
+    " = [reg_l + off_l] + [reg_r + off_r]"
+    off_l: int
+    off_r: int
+    reg_l: Register
+    reg_r: Register
+
+    def suffix_and_nums(self):
+        return f"add_{reg2str(self.reg_l)}_{reg2str(self.reg_r)}", [self.off_l, self.off_r]
+
+@dataclasses.dataclass
+class ResMul:
+    " = [reg_l + off_l] * [reg_r + off_r]"
+    off_l: int
+    off_r: int
+    reg_l: Register
+    reg_r: Register
+
+    def suffix_and_nums(self):
+        return f"mul_{reg2str(self.reg_l)}_{reg2str(self.reg_r)}", [self.off_l, self.off_r]
+
+@dataclasses.dataclass
+class ResAddImm:
+    " = [reg + off] + C"
+    off: int
+    reg: Register
+    imm: int
+
+    def suffix_and_nums(self):
+        return f"add_imm_{reg2str(self.reg)}", [self.off, self.imm]
+
+@dataclasses.dataclass
+class ResMulImm:
+    " = [reg + off] * C"
+    off: int
+    reg: Register
+    imm: int
+
+    def suffix_and_nums(self):
+        return f"mul_imm_{reg2str(self.reg)}", [self.off, self.imm]
+
+
+RES_TYPES = [ResImm, ResDeref, ResDoubleDeref, ResAdd, ResAddImm, ResMul, ResMulImm]
+
+ResDescription = Union[ResImm, ResDeref, ResDoubleDeref, ResAdd, ResAddImm, ResMul, ResMulImm]
 
 
 def _parse_res(expr: Expression) -> ResDescription:
@@ -393,15 +462,7 @@ def _parse_res(expr: Expression) -> ResDescription:
     if isinstance(expr, ExprDeref):
         return _parse_res_deref(expr.addr)
     elif isinstance(expr, ExprConst):
-        # In this case op0 is not involved. Choose [fp - 1] as the default.
-        return ResDescription(
-            off1=-1,
-            off2=1,
-            imm=expr.val,
-            op0_register=Register.FP,
-            op1_addr=Instruction.Op1Addr.IMM,
-            res=Instruction.Res.OP1,
-        )
+        return ResImm(imm=expr.val)
     elif isinstance(expr, ExprOperator):
         return _parse_res_operator(expr)
     else:
@@ -419,25 +480,18 @@ def _parse_res_deref(expr: Expression) -> ResDescription:
         # Double dereference.
         inner, off2 = _parse_offset(expr)
         inner_addr = _parse_dereference(inner)
-        op0_register, off1 = _parse_register_offset(inner_addr)
-        return ResDescription(
-            off1=off1,
-            off2=off2,
-            imm=None,
-            op0_register=op0_register,
-            op1_addr=Instruction.Op1Addr.OP0,
-            res=Instruction.Res.OP1,
+        reg, off1 = _parse_register_offset(inner_addr)
+        return ResDoubleDeref(
+            inner=off1,
+            outer=off2,
+            reg=reg,
         )
 
     # In this case op0 is not involved. Choose [fp - 1] as the default.
     op1_reg, off2 = _parse_register_offset(expr)
-    return ResDescription(
-        off1=-1,
-        off2=off2,
-        imm=None,
-        op0_register=Register.FP,
-        op1_addr=Instruction.Op1Addr.FP if op1_reg is Register.FP else Instruction.Op1Addr.AP,
-        res=Instruction.Res.OP1,
+    return ResDeref(
+        off = off2,
+        reg=op1_reg,
     )
 
 
@@ -447,9 +501,9 @@ def _parse_res_operator(expr: ExprOperator) -> ResDescription:
     replaced by +), returns the corresponding ResDescription.
     """
     if expr.op == "+":
-        res = Instruction.Res.ADD
+        res_types = [ResAdd, ResAddImm]
     elif expr.op == "*":
-        res = Instruction.Res.MUL
+        res_types = [ResMul, ResMulImm]
     else:
         raise InstructionBuilderError(
             f"Expected '+' or '*', found: '{expr.op}'.", location=expr.location
@@ -461,28 +515,16 @@ def _parse_res_operator(expr: ExprOperator) -> ResDescription:
 
     # Parse op1.
     op1_expr = expr.b
-    imm = None
     if isinstance(op1_expr, ExprConst):
-        off2 = 1
-        op1_addr = Instruction.Op1Addr.IMM
-        imm = op1_expr.val
+        return res_types[1](off=off1, reg=op0_register, imm=op1_expr.val)
     elif isinstance(op1_expr, ExprDeref):
         op1_reg, off2 = _parse_register_offset(op1_expr.addr)
-        op1_addr = Instruction.Op1Addr.FP if op1_reg is Register.FP else Instruction.Op1Addr.AP
+        return res_types[1](off_l=off1, off_r=off2, reg_l=op0_register, reg_r=op1_reg)
     else:
         raise InstructionBuilderError(
             "Expected a constant expression or a dereference expression.",
             location=op1_expr.location,
         )
-
-    return ResDescription(
-        off1=off1,
-        off2=off2,
-        imm=imm,
-        op0_register=op0_register,
-        op1_addr=op1_addr,
-        res=res,
-    )
 
 
 def _parse_dereference(expr: Expression):

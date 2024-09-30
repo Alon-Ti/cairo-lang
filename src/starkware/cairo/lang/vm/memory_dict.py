@@ -3,7 +3,7 @@ from typing import Callable, Dict, Iterable, List, Mapping, Optional, Tuple, Typ
 from starkware.cairo.lang.vm.memory_dict_backend import MemoryDictBackend
 from starkware.cairo.lang.vm.relocatable import MaybeRelocatable, RelocatableValue
 
-ADDR_SIZE_IN_BYTES = 8
+ADDR_SIZE_IN_BYTES = 4
 
 
 class UnknownMemoryError(KeyError):
