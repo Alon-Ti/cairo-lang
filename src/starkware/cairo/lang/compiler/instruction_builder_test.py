@@ -1,10 +1,13 @@
 import pytest
+import os
+import json
 
 from starkware.cairo.lang.compiler.error_handling import get_location_marks
 from starkware.cairo.lang.compiler.instruction import BytecodeElement, M31Instruction, Register
 from starkware.cairo.lang.compiler.instruction_builder import (
     InstructionBuilderError,
     build_instruction,
+    INSTRUCTION_OPCODES,
 )
 from starkware.cairo.lang.compiler.parser import parse_instruction
 
@@ -348,3 +351,8 @@ def verify_exception(code_with_err):
         get_location_marks(code, e.value.location) + "\n" + str(e.value.message)
         == code_with_err.rstrip()
     )
+
+def test_opcode_list():
+    OPCODE_LIST_FILE = os.path.join(os.path.dirname(__file__), "opcode_list.json")
+    opcode_list = json.load(open(OPCODE_LIST_FILE))
+    assert INSTRUCTION_OPCODES == opcode_list

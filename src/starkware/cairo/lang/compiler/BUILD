@@ -195,6 +195,9 @@ pytest_test(
     srcs = [
         "instruction_builder_test.py",
     ],
+    data = [
+        "opcode_list.json",
+    ],
     visibility = ["//visibility:public"],
     deps = [
         ":cairo_compile_lib",
