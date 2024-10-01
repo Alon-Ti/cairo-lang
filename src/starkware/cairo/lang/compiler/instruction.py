@@ -30,6 +30,10 @@ class M31Instruction(BytecodeElement):
     opcode: str
     operands: List[int]
 
+    @property
+    def size(self):
+        return 1
+
 
 
 @dataclasses.dataclass
@@ -117,7 +121,7 @@ class Instruction(BytecodeElement):
 
     @property
     def size(self):
-        return 2 if self.imm is not None else 1
+        return 1
 
 
 def decode_instruction_values(encoded_instruction):

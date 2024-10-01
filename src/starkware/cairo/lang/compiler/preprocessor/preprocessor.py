@@ -502,7 +502,7 @@ class Preprocessor(IdentifierAwareVisitor):
             self.accessible_scopes = preprocessed_instruction.accessible_scopes
             new_instruction = self.visit(preprocessed_instruction.instruction)
             self.check_preprocessed_instruction(new_instruction)
-            self.current_pc += self.get_instruction_size(new_instruction)
+            self.current_pc += 1
             self.instructions.append(
                 PreprocessedInstruction(
                     instruction=new_instruction,
@@ -1000,9 +1000,7 @@ Expected 'elm.element_type' to be a 'namespace'. Found: '{elm.element_type}'."""
             flow_tracking_data=current_flow_tracking_data,
         )
         self._clear_next_hints()
-        self.current_pc += self.get_instruction_size(
-            preprocessed_instruction.instruction, allow_auto_deduction=True
-        )
+        self.current_pc += 1
         self.instructions.append(preprocessed_instruction)
 
     def visit_CodeElementConst(self, elm: CodeElementConst):

@@ -102,6 +102,7 @@ py_library(
         "//src/starkware/cairo/lang/compiler/preprocessor/bool_expr:lowering.py",
     ],
     data = [
+        "opcode_list.json",
         "cairo.ebnf",
         "//src/starkware/cairo/lang/compiler/lib:registers.cairo",
     ],
