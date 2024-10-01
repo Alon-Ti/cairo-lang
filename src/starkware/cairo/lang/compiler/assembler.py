@@ -52,12 +52,10 @@ def assemble(
                 accessible_scopes=inst.accessible_scopes,
                 flow_tracking_data=inst.flow_tracking_data,
             )
-        data += [
-            word
-            for word in encode_instruction(
+        data.append(encode_instruction(
                 build_instruction(inst.instruction), prime=preprocessed_program.prime
             )
-        ]
+        )
 
     if debug_info is not None:
         debug_info.add_autogen_file_contents()

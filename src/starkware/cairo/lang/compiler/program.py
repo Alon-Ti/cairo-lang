@@ -2,7 +2,7 @@ import dataclasses
 import string
 from abc import ABC, abstractmethod
 from dataclasses import field
-from typing import Any, Dict, List, Optional, Type, Union
+from typing import Any, Dict, List, Optional, Type, Union, Tuple
 
 import marshmallow
 import marshmallow.fields as mfields
@@ -45,7 +45,7 @@ class ProgramBase(ABC):
         """
 
     prime: int
-    data: List[int]
+    data: List[Tuple[int]]
     builtins: List[str]
     main: Optional[int]
 
@@ -58,7 +58,7 @@ class StrippedProgram(ProgramBase):
     """
 
     prime: int
-    data: List[int]
+    data: List[Tuple[int]]
     builtins: List[str]
     main: int
 
@@ -68,7 +68,7 @@ class StrippedProgram(ProgramBase):
     def run_validity_checks(self):
         assert isinstance(self.prime, int) and self.prime > 2**63, "Invalid prime."
         assert isinstance(self.data, list) and all(
-            isinstance(x, int) and 0 <= x < self.prime for x in self.data
+            isinstance(x, tuple) and all(0 <= elm < self.prime for elm in x) for x in self.data
         ), "Invalid program data."
         assert (
             isinstance(self.builtins, list)
@@ -83,8 +83,8 @@ class StrippedProgram(ProgramBase):
 @marshmallow_dataclass.dataclass(repr=False)
 class Program(ProgramBase, SerializableMarshmallowDataclass):
     prime: int = field(metadata=additional_metadata(marshmallow_field=IntAsHex(required=True)))
-    data: List[int] = field(
-        metadata=additional_metadata(marshmallow_field=mfields.List(IntAsHex(), required=True))
+    data: List[Tuple[int]] = field(
+        metadata=additional_metadata(marshmallow_field=mfields.List(mfields.Tuple((IntAsHex(),)*4), required=True))
     )
     builtins: List[str]
     hints: Dict[int, List[CairoHint]]

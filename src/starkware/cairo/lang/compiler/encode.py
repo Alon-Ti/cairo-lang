@@ -1,7 +1,7 @@
 import os
 import json
 
-from typing import List
+from typing import List, Tuple
 
 from starkware.cairo.lang.compiler.instruction import (
     BytecodeData,
@@ -11,6 +11,7 @@ from starkware.cairo.lang.compiler.instruction import (
 
 OPCODE_LIST_FILE = os.path.join(os.path.dirname(__file__), "opcode_list.json")
 OPCODE_DICT = {inst: i for i, inst in enumerate(json.load(open(OPCODE_LIST_FILE)))}
+IDX_TO_OPCODE = {i: inst for i, inst in enumerate(json.load(open(OPCODE_LIST_FILE)))}
 
 
 def encode_instruction(element: BytecodeElement, prime: int) -> List[int]:
@@ -22,3 +23,11 @@ def encode_instruction(element: BytecodeElement, prime: int) -> List[int]:
     assert isinstance(element, M31Instruction)
     instruction = [OPCODE_DICT[element.opcode]] + (element.operands + [0] * 4)[:3]
     return [x % prime for x in instruction]
+
+def decode_instruction(encoded: Tuple[int]) -> M31Instruction:
+    """
+    Given an encoded instruction, returns the decoded instruction.
+    """
+    opcode = IDX_TO_OPCODE[encoded[0]]
+    operands = encoded[1:]
+    return M31Instruction(opcode=opcode, operands=operands)
