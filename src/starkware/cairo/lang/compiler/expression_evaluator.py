@@ -43,7 +43,7 @@ class ExpressionEvaluator(Generic[T], ExpressionSimplifier):
         res = self.visit(expr)
         assert isinstance(res, ExprConst), f"Unable to evaluate expression '{expr.format()}'."
         assert self.prime is not None
-        return cast(T, res.val % self.prime)
+        return cast(T, res.val)
 
     def visit_ExprReg(self, expr: ExprReg) -> ExprConst:
         if expr.reg is Register.AP:
@@ -61,7 +61,7 @@ class ExpressionEvaluator(Generic[T], ExpressionSimplifier):
         assert self.prime is not None
         try:
             return self.to_expr_const(
-                val=self.memory[cast(T, addr.val % self.prime)], location=expr.location
+                val=self.memory[cast(T, addr.val)], location=expr.location
             )
         except Exception as exc:
             raise ExpressionEvaluatorError(str(exc), location=expr.location)

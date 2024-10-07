@@ -5,6 +5,7 @@ from starkware.cairo.lang.compiler.ast.cairo_types import TypeFelt, TypePointer,
 from starkware.cairo.lang.vm.memory_dict import MemoryDict
 from starkware.cairo.lang.vm.relocatable import MaybeRelocatable, RelocatableValue
 from starkware.cairo.lang.vm.vm_exceptions import SecurityError
+from starkware.cairo.lang.vm.relocatable import QM31
 
 FIRST_MEMORY_ADDR = 1
 SEGMENT_SIZE_UPPER_BOUND = 2**64
@@ -272,6 +273,6 @@ def is_valid_memory_addr(
 
 
 def is_valid_memory_value(value: MaybeRelocatable, segment_sizes: Dict[int, int]):
-    return isinstance(value, int) or is_valid_memory_addr(
+    return isinstance(value, QM31) or is_valid_memory_addr(
         addr=value, segment_sizes=segment_sizes, is_concrete_address=False
     )

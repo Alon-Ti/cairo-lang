@@ -456,38 +456,45 @@ class VirtualMachine(VirtualMachineBase):
 
         imm = instruction.operands[0]
         self.run_context.ap += imm
+        self.run_context.pc += 1
 
     def addr_and_val(self, op: str, off: int) -> Tuple[Optional[MaybeRelocatable], Optional[MaybeRelocatable]]:
+        if off >= 2**16:
+            off -= self.prime
         if op == "imm":
             return None, off
         addr = None
         if op == "ap":
             addr = self.run_context.ap + off
         if op == "fp":
-            addr = self.run_context.ap + off
+            addr = self.run_context.fp + off
         self.accessed_addresses.add(addr)
         return addr, self.validated_memory.get(addr)
 
     def run_assert_instruction(self, instruction: M31Instruction):
-        opcode = instruction.opcode[len("assert_")]
+        opcode = instruction.opcode[len("assert_"):]
         appp = opcode.endswith("appp")
         if appp:
-            self.run_context.ap += 1
             opcode = opcode[:-len("_appp")]
 
-        for op0 in ["ap", "fp"]:
-            for op1 in ["ap", "fp", "imm"]:
-                for op2 in ["ap", "fp"]:
-                    if opcode == f"{op0}_add_{op1}_{op2}":
-                        return self.run_add(op0, op1, op2, instruction.operands)
-                    if opcode == f"{op0}_mul_{op1}_{op2}":
-                        return self.run_mul(op0, op1, op2, instruction.operands)
-                    if opcode == f"{op0}_imm":
-                        return self.run_assign_immediate(op0, instruction.operands)
-                    if opcode == f"{op0}_deref_{op1}":
-                        return self.run_equate(op0, op1, instruction.operands)
-                    if opcode == f"{op0}_double_deref_{op1}":
-                        return self.run_double_deref(op0, op1, instruction.operands)
+        try:
+            for op0 in ["ap", "fp"]:
+                for op1 in ["ap", "fp", "imm"]:
+                    for op2 in ["ap", "fp"]:
+                        if opcode == f"{op0}_add_{op1}_{op2}":
+                            return self.run_add(op0, op1, op2, instruction.operands)
+                        if opcode == f"{op0}_mul_{op1}_{op2}":
+                            return self.run_mul(op0, op1, op2, instruction.operands)
+                        if opcode == f"{op0}_imm":
+                            return self.run_assign_immediate(op0, instruction.operands)
+                        if opcode == f"{op0}_deref_{op1}":
+                            return self.run_equate(op0, op1, instruction.operands)
+                        if opcode == f"{op0}_double_deref_{op1}":
+                            return self.run_double_deref(op0, op1, instruction.operands)
+        finally:
+            self.run_context.pc += 1
+            if appp:
+                self.run_context.ap += 1
 
         assert False, f"Unsupported instruction: {instruction.opcode}"
 
@@ -552,12 +559,19 @@ class VirtualMachine(VirtualMachineBase):
 
     def run_double_deref(self, op0: str, op1: str, operands: List[int]):
         addr0, val0 = self.addr_and_val(op0, operands[0])
-        inner, outer_addr = self.addr_and_val(op1, operands[1])
+        _, outer_addr = self.addr_and_val(op1, operands[1])
         assert outer_addr is not None, "Address cannot be deduced for double dereference"
+
+        outer_off = operands[2]
+        if outer_off >= 2**16:
+            outer_off -= self.prime
+
+        outer_addr = outer_addr + outer_off
+
         self.accessed_addresses.add(outer_addr)
         outer_val = self.validated_memory.get(outer_addr)
 
-        if val0 is not None and inner is not None and outer_val is not None:
+        if val0 is not None and outer_val is not None:
             assert val0 == outer_val, f"Assertion failed: {val0} != {outer_val}"
 
         if val0 is None:
@@ -571,11 +585,11 @@ class VirtualMachine(VirtualMachineBase):
     def run_call_instruction(self, instruction: M31Instruction):
         opcode = instruction.opcode[len("call_"):]
 
-        base_addr = QM31(instruction.operands[0])
+        base_addr = QM31.from_int(0)
         if opcode.startswith("rel"):
             base_addr = self.run_context.pc
         else:
-            assert opcode.startswith("abs"), f"Unsupported call instruction: {instruction.opcode}"
+            assert opcode.startswith("abs"), f"Unsupported instruction: {instruction.opcode}"
 
         opcode = opcode[len("abs_"):]
 
@@ -583,13 +597,13 @@ class VirtualMachine(VirtualMachineBase):
         assert val is not None, "Address cannot be deduced for call"
 
         self.validated_memory[self.run_context.ap] = self.run_context.fp
-        self.validated_memory[self.run_context.ap + 1] = self.run_context.pc
+        self.validated_memory[self.run_context.ap + 1] = self.run_context.pc + 1
 
         self.accessed_addresses.add(self.run_context.ap)
         self.accessed_addresses.add(self.run_context.ap + 1)
 
         self.run_context.pc = base_addr + val
-        self.run_context.ap = self.run_context.ap + 2
+        self.run_context.ap += 2
         self.run_context.fp = self.run_context.ap
 
     def run_jmp_instruction(self, instruction: M31Instruction):
@@ -597,45 +611,44 @@ class VirtualMachine(VirtualMachineBase):
 
         appp = opcode.endswith("appp")
         if appp:
-            self.run_context.ap += 1
             opcode = opcode[:-len("_appp")]
 
-        base_addr = QM31(instruction.operands[0])
+        base_addr = QM31.from_int(0)
         if opcode.startswith("rel"):
             base_addr = self.run_context.pc
         else:
-            assert opcode.startswith("abs"), f"Unsupported call instruction: {instruction.opcode}"
+            assert opcode.startswith("abs"), f"Unsupported instruction: {instruction.opcode}"
 
         opcode = opcode[len("abs_"):]
 
         if opcode == "imm":
             self.run_context.pc = base_addr + instruction.operands[0]
             return
-
-        if opcode.startswith("deref"):
+        elif opcode.startswith("deref"):
             opcode = opcode[len("deref_"):]
             _, val = self.addr_and_val(opcode, instruction.operands[0])
             assert val is not None, "Address cannot be deduced for jump"
             self.run_context.pc = base_addr + val
             return
-
-        if opcode.startswith("double_deref"):
+        elif opcode.startswith("double_deref"):
             opcode = opcode[len("double_deref_"):]
             _, outer_addr = self.addr_and_val(opcode, instruction.operands[0])
             assert outer_addr is not None, "Address cannot be deduced for double dereference"
             outer_val = self.validated_memory[outer_addr]
             self.accessed_addresses.add(outer_addr)
             self.run_context.pc = base_addr + outer_val
-            return
+        else:
+            assert False, f"Unsupported instruction: {instruction.opcode}"
 
-        assert False, f"Unsupported instruction: {instruction.opcode}"
+        if appp:
+            self.run_context.ap += 1
+
 
     def run_jnz_instruction(self, instruction: M31Instruction):
         opcode = instruction.opcode[len("jnz_"):]
 
         appp = opcode.endswith("appp")
         if appp:
-            self.run_context.ap += 1
             opcode = opcode[:-len("_appp")]
 
         off_op, cond_op = opcode.split("_")
@@ -648,12 +661,16 @@ class VirtualMachine(VirtualMachineBase):
         assert off_val is not None, "Offset cannot be deduced for jnz"
         assert cond_val is not None, "Condition cannot be deduced for jnz"
 
+        if appp:
+            self.run_context.ap += 1
         if not cond_val.is_zero():
             self.run_context.pc += off_val
+        else:
+            self.run_context.pc += 1
 
     def run_ret_instruction(self):
-        self.run_context.fp = self.validated_memory[self.run_context.fp - 2]
         self.run_context.pc = self.validated_memory[self.run_context.fp - 1]
+        self.run_context.fp = self.validated_memory[self.run_context.fp - 2]
 
 
     def step(self):

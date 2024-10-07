@@ -152,4 +152,4 @@ def to_field_element(val: int, prime: Optional[int]) -> int:
     if prime is None:
         return val
     half_prime = prime // 2
-    return ((val + half_prime) % prime) - half_prime
+    return ((val + half_prime)) - half_prime

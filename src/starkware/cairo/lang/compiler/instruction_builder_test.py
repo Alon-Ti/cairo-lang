@@ -137,7 +137,7 @@ def test_assert_eq_operation():
         opcode="assert_ap_mul_ap_fp", operands=[1, -7, 3]
     )
     assert parse_and_build("[ap + 10] = [fp] + 1234567890") == M31Instruction(
-        opcode="assert_ap_add_imm_fp", operands=[10, 0, 1234567890]
+        opcode="assert_ap_add_imm_fp", operands=[10, 1234567890, 0]
     )
     assert parse_and_build("[fp - 3] = [ap + 7] * [ap + 8]") == M31Instruction(
         opcode="assert_fp_mul_ap_ap", operands=[-3, 7, 8]

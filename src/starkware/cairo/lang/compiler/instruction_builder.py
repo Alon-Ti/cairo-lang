@@ -398,7 +398,7 @@ class ResAddImm:
     imm: int
 
     def suffix_and_ops(self):
-        return f"add_imm_{reg2str(self.reg)}", [self.off, self.imm]
+        return f"add_imm_{reg2str(self.reg)}", [self.imm, self.off]
 
     @classmethod
     def all_types(cls):
@@ -413,7 +413,7 @@ class ResMulImm:
     imm: int
 
     def suffix_and_ops(self):
-        return f"mul_imm_{reg2str(self.reg)}", [self.off, self.imm]
+        return f"mul_imm_{reg2str(self.reg)}", [self.imm, self.off]
 
     @classmethod
     def all_types(cls):

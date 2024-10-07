@@ -61,6 +61,7 @@ from starkware.crypto.signature.signature import inv_mod_curve_size
 from starkware.python.math_utils import next_power_of_2, safe_div
 from starkware.python.utils import WriteOnceDict
 from starkware.starkware_utils.subsequence import is_subsequence
+from starkware.cairo.lang.vm.relocatable import QM31
 
 TCairoRunner = TypeVar("TCairoRunner", bound="CairoRunner")
 
@@ -677,7 +678,7 @@ class CairoRunner:
         relocated = relocate_value(
             value=value, segment_offsets=self.segment_offsets, prime=self.program.prime
         )
-        assert isinstance(relocated, int)
+        assert isinstance(relocated, QM31)
         return relocated
 
     def get_segment_offsets(self) -> Dict[int, int]:

@@ -31,7 +31,6 @@ class ValidatedMemoryDict:
         return self.__memory.get(addr)
 
     def __setitem__(self, addr: MaybeRelocatable, value: MaybeRelocatable):
-        value %= self.prime
         self.__memory[addr] = value
         self._validate_memory_cell(addr, value)
 

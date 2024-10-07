@@ -55,14 +55,29 @@ class CM31:
     def is_zero(self):
         return self.to_tuple() == (0, 0)
 
+    def __eq__(self, other):
+        if isinstance(other, CM31):
+            return self.a == other.a and self.b == other.b
+        elif isinstance(other, int):
+            return self == CM31(other, 0)
+        return False
+
+    def __lt__(self, other):
+        if self.a == other.a:
+            return self.b < other.b
+        return self.a < other.a
+
     def __str__(self):
+        def unoneify(x):
+            return "" if x == 1 else str(x)
+
         if self.a == 0 and self.b == 0:
             return "0"
         if self.a == 0:
-            return f"{self.b}i"
+            return f"{unoneify(self.b)}i" if self.b != 1 else "i"
         if self.b == 0:
             return str(self.a)
-        return f"{self.a} + {self.b}i"
+        return f"{self.a} + {unoneify(self.b)}i"
 
 R = CM31(2, 1)
 
@@ -82,12 +97,20 @@ class QM31:
             self.a + other.a, self.b + other.b
         )
 
+    def __radd__(self, other):
+        return self + other
+
     def __sub__(self, other):
         if isinstance(other, int):
             other = QM31.from_int(other)
         return QM31(
             self.a - other.a, self.b - other.b
         )
+
+    def __rsub__(self, other):
+        if isinstance(other, int):
+            other = QM31.from_int(other)
+        return other - self
 
     def __mul__(self, other):
         if isinstance(other, int):
@@ -97,10 +120,18 @@ class QM31:
             self.a * other.b + self.b * other.a
         )
 
+    def __rmul__(self, other):
+        return self * other
+
     def __div__(self, other):
         if isinstance(other, int):
             other = QM31.from_int(other)
         return self * other.inv()
+
+    def __rdiv__(self, other):
+        if isinstance(other, int):
+            other = QM31.from_int(other)
+        return other / self # type: ignore
 
     def __hash__(self) -> int:
         return hash(("QM31", self.a, self.b))
@@ -152,6 +183,13 @@ class QM31:
     def is_zero(self):
         return self.to_tuple() == (0, 0, 0, 0)
 
+    def __lt__(self, other):
+        if isinstance(other, int):
+            other = QM31.from_int(other)
+        if self.a == other.a:
+            return self.b < other.b
+        return self.a < other.a
+
     def __str__(self):
         def parenthify(expr):
             expr = str(expr)
@@ -159,20 +197,26 @@ class QM31:
                 return f"({expr})"
             return expr
 
+        def unoneify(x):
+            return "" if x == 1 else str(x)
+
         if self.a.is_zero() and self.b.is_zero():
             return "0"
         if self.a.is_zero():
-            return f"{parenthify(self.b)}u"
+            return f"{parenthify(unoneify(self.b))}u"
         if self.b.is_zero():
             return parenthify(self.a)
-        return f"{parenthify(self.a)} + {parenthify(self.b)}i"
+        return f"{parenthify(self.a)} + {parenthify(unoneify(self.b))}u"
 
     def __eq__(self, other):
         if isinstance(other, QM31):
             return self.a == other.a and self.b == other.b
         if isinstance(other, int):
             return self == QM31.from_int(other)
-        assert False, f"Can't compare QM31 and {other.__class__.__name__}"
+        return False
+
+    def __format__(self, format_spec):
+        return str(self).__format__(format_spec)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -187,6 +231,9 @@ class RelocatableValue:
 
     SEGMENT_BITS = 8
     OFFSET_BITS = 22
+
+    def is_zero(self):
+        return False
 
     def __add__(self, other: "MaybeRelocatable") -> "RelocatableValue":
         if isinstance(other, int):
@@ -320,7 +367,7 @@ segment_offsets={segment_offsets}.
 
         value = value.offset + segment_offset
         if isinstance(value, int):
-            assert value < prime
+            assert value < prime, "Value must be less than prime"
         return QM31.from_int(value)
     else:
         raise NotImplementedError("Not relocatable")
