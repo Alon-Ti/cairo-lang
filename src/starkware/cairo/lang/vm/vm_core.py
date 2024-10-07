@@ -447,14 +447,12 @@ class VirtualMachine(VirtualMachineBase):
                 )
             )
 
-        self.accessed_addresses.update(operands_mem_addresses)
         self.accessed_addresses.add(self.run_context.pc)
 
         self.current_step += 1
 
     def run_addap_instruction(self, instruction: M31Instruction):
         assert instruction.opcode == "addap_imm", f"Unsupported instruction: {instruction.opcode}"
-        assert instruction.operands[1:] = [0, 0, 0], f"Illegal operands for addap_imm: {instruction.operands}"
 
         imm = instruction.operands[0]
         self.run_context.ap += imm
@@ -570,7 +568,92 @@ class VirtualMachine(VirtualMachineBase):
             assert val0 is not None, "Cannot deduce more than one operand"
             self.validated_memory[outer_addr] = val0
 
-        
+    def run_call_instruction(self, instruction: M31Instruction):
+        opcode = instruction.opcode[len("call_"):]
+
+        base_addr = QM31(instruction.operands[0])
+        if opcode.startswith("rel"):
+            base_addr = self.run_context.pc
+        else:
+            assert opcode.startswith("abs"), f"Unsupported call instruction: {instruction.opcode}"
+
+        opcode = opcode[len("abs_"):]
+
+        _, val = self.addr_and_val(opcode, instruction.operands[0])
+        assert val is not None, "Address cannot be deduced for call"
+
+        self.validated_memory[self.run_context.ap] = self.run_context.fp
+        self.validated_memory[self.run_context.ap + 1] = self.run_context.pc
+
+        self.accessed_addresses.add(self.run_context.ap)
+        self.accessed_addresses.add(self.run_context.ap + 1)
+
+        self.run_context.pc = base_addr + val
+        self.run_context.ap = self.run_context.ap + 2
+        self.run_context.fp = self.run_context.ap
+
+    def run_jmp_instruction(self, instruction: M31Instruction):
+        opcode = instruction.opcode[len("jmp_"):]
+
+        appp = opcode.endswith("appp")
+        if appp:
+            self.run_context.ap += 1
+            opcode = opcode[:-len("_appp")]
+
+        base_addr = QM31(instruction.operands[0])
+        if opcode.startswith("rel"):
+            base_addr = self.run_context.pc
+        else:
+            assert opcode.startswith("abs"), f"Unsupported call instruction: {instruction.opcode}"
+
+        opcode = opcode[len("abs_"):]
+
+        if opcode == "imm":
+            self.run_context.pc = base_addr + instruction.operands[0]
+            return
+
+        if opcode.startswith("deref"):
+            opcode = opcode[len("deref_"):]
+            _, val = self.addr_and_val(opcode, instruction.operands[0])
+            assert val is not None, "Address cannot be deduced for jump"
+            self.run_context.pc = base_addr + val
+            return
+
+        if opcode.startswith("double_deref"):
+            opcode = opcode[len("double_deref_"):]
+            _, outer_addr = self.addr_and_val(opcode, instruction.operands[0])
+            assert outer_addr is not None, "Address cannot be deduced for double dereference"
+            outer_val = self.validated_memory[outer_addr]
+            self.accessed_addresses.add(outer_addr)
+            self.run_context.pc = base_addr + outer_val
+            return
+
+        assert False, f"Unsupported instruction: {instruction.opcode}"
+
+    def run_jnz_instruction(self, instruction: M31Instruction):
+        opcode = instruction.opcode[len("jnz_"):]
+
+        appp = opcode.endswith("appp")
+        if appp:
+            self.run_context.ap += 1
+            opcode = opcode[:-len("_appp")]
+
+        off_op, cond_op = opcode.split("_")
+        assert off_op in ["ap", "fp", "imm"], f"Unsupported opcode: {instruction.opcode}"
+        assert cond_op in ["ap", "fp"], f"Unsupported opcode: {instruction.opcode}"
+
+        _, off_val = self.addr_and_val(off_op, instruction.operands[0])
+        _, cond_val = self.addr_and_val(cond_op, instruction.operands[1])
+
+        assert off_val is not None, "Offset cannot be deduced for jnz"
+        assert cond_val is not None, "Condition cannot be deduced for jnz"
+
+        if not cond_val.is_zero():
+            self.run_context.pc += off_val
+
+    def run_ret_instruction(self):
+        self.run_context.fp = self.validated_memory[self.run_context.fp - 2]
+        self.run_context.pc = self.validated_memory[self.run_context.fp - 1]
 
 
     def step(self):
