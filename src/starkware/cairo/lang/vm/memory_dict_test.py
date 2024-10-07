@@ -1,5 +1,7 @@
 import pytest
 
+from starkware.cairo.lang.vm.relocatable import QM31
+
 from starkware.cairo.lang.vm.memory_dict import (
     InconsistentMemoryError,
     MemoryDict,
@@ -23,10 +25,6 @@ def test_memory_dict_serialize():
             0,
             0,
             0,
-            0,
-            0,
-            0,
-            0,
             2,
             0,
             0,
@@ -34,18 +32,10 @@ def test_memory_dict_serialize():
             0,
             0,
             0,
-            0,
-            0,
-            0,
-            0,
             4,
             0,
             0,
             5,
-            0,
-            0,
-            0,
-            0,
             0,
             0,
             0,
@@ -67,12 +57,8 @@ def test_memory_dict_getitem():
 
 def test_memory_dict_check_element():
     memory = MemoryDict()
-    with pytest.raises(KeyError, match="must be an int"):
+    with pytest.raises(KeyError, match="must be a QM31"):
         memory["not a number"] = 12  # type: ignore
-    with pytest.raises(KeyError, match="must be nonnegative"):
-        memory[-12] = 13
-    with pytest.raises(ValueError, match="must be nonnegative"):
-        memory[12] = -13
     with pytest.raises(ValueError, match="The offset of a relocatable value must be nonnegative"):
         memory[RelocatableValue(segment_index=10, offset=-2)] = 13
     # A value may have a negative offset.
@@ -95,17 +81,15 @@ def test_memory_dict_setdefault():
     assert memory[14] == 15
     memory.setdefault(123, 456)
     assert memory[123] == 456
-    with pytest.raises(ValueError, match="must be an int"):
+    with pytest.raises(ValueError, match="must be a QM31"):
         memory.setdefault(10, "default")
-    with pytest.raises(KeyError, match="must be nonnegative"):
-        memory.setdefault(-10, 123)
     with pytest.raises(ValueError, match="The offset of a relocatable value must be nonnegative"):
         memory[RelocatableValue(segment_index=10, offset=-2)] = 13
 
 
 def test_memory_dict_in():
     memory = MemoryDict({1: 2, 3: 4})
-    assert 1 in memory
+    assert QM31.from_int(1) in memory
     assert 2 not in memory
     # Test that `in` doesn't add the value to the dict.
     assert 2 not in memory
@@ -132,8 +116,8 @@ def test_segment_relocations():
     memory[temp_segment + 3] = 17
     memory.relocate_memory()
     assert memory.data == {
-        5: relocation_target + 2,
-        relocation_target + 3: 17,
+        QM31.from_int(5): relocation_target + 2,
+        relocation_target + 3: QM31.from_int(17),
     }
 
 

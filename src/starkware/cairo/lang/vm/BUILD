@@ -165,3 +165,32 @@ pytest_test(
         requirement("marshmallow_dataclass"),
     ],
 )
+
+pytest_test(
+    name = "memory_dict_test",
+    srcs = [
+        "memory_dict_test.py",
+    ],
+    data = [
+        "test.cairo",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":cairo_relocatable_lib",
+        ":cairo_run_lib",
+        ":cairo_vm_crypto_lib",
+        ":cairo_vm_lib",
+        ":cairo_vm_test_utils_lib",
+        ":cairo_vm_utils_lib",
+        "//src/starkware/cairo/common:cairo_common_lib",
+        "//src/starkware/cairo/lang:cairo_constants_lib",
+        "//src/starkware/cairo/lang/compiler:cairo_compile_lib",
+        "//src/starkware/python:starkware_python_test_utils_lib",
+        "//src/starkware/python:starkware_python_utils_lib",
+        "//src/starkware/starkware_utils:starkware_dataclasses_utils_lib",
+        requirement("marshmallow_dataclass"),
+        requirement("idna"),
+        requirement("urllib3"),
+        requirement("certifi"),
+    ],
+)

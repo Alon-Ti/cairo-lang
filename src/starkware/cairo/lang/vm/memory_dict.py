@@ -2,6 +2,7 @@ from typing import Callable, Dict, Iterable, List, Mapping, Optional, Tuple, Typ
 
 from starkware.cairo.lang.vm.memory_dict_backend import MemoryDictBackend
 from starkware.cairo.lang.vm.relocatable import MaybeRelocatable, RelocatableValue
+from starkware.cairo.lang.vm.relocatable import QM31
 
 ADDR_SIZE_IN_BYTES = 4
 
@@ -51,6 +52,11 @@ class MemoryDict:
         if values is None:
             values = []
         elif isinstance(values, dict):
+            if isinstance(list(values.values())[0], int):
+                values = {
+                    QM31.from_int(k): QM31.from_int(v)
+                    for k, v in values.items()
+                }
             values = values.items()
         self.data = backend(values)
 
@@ -63,6 +69,8 @@ class MemoryDict:
     def get(
         self, addr, default_value: Optional[MaybeRelocatable] = None
     ) -> Optional[MaybeRelocatable]:
+        addr = self._maybe_lift(addr)
+        default_value = self._maybe_lift(default_value)
         return self.relocate_value(self.data.get(addr, default_value))
 
     def items(self) -> Iterable[Tuple[MaybeRelocatable, MaybeRelocatable]]:
@@ -96,6 +104,11 @@ class MemoryDict:
     def __len__(self):
         return len(self.data)
 
+    def _maybe_lift(self, num: Union[MaybeRelocatable, int]):
+        if isinstance(num, int):
+            return QM31.from_int(num)
+        return num
+
     def _check_element(self, num: MaybeRelocatable, name: str, exc_type: Type[Exception]):
         """
         Checks that num is a valid Cairo value: positive int or relocatable.
@@ -103,10 +116,8 @@ class MemoryDict:
         """
         if isinstance(num, RelocatableValue):
             return
-        if not isinstance(num, int):
-            raise exc_type(f"{name} must be an int, not {type(num).__name__}.")
-        if num < 0:
-            raise exc_type(f"{name} must be nonnegative. Got {num}.")
+        if not isinstance(num, QM31):
+            raise exc_type(f"{name} must be a QM31, not {type(num).__name__}.")
 
     def add_relocation_rule(self, src_ptr: RelocatableValue, dest_ptr: RelocatableValue):
         """
@@ -182,7 +193,8 @@ class MemoryDict:
         self.data = relocated_memory
         self.relocation_rules = {}
 
-    def __getitem__(self, addr: MaybeRelocatable) -> MaybeRelocatable:
+    def __getitem__(self, addr: Union[MaybeRelocatable, int]) -> MaybeRelocatable:
+        addr = self._maybe_lift(addr)
         self._check_element(addr, "Memory address", KeyError)
         try:
             value = self.data[addr]
@@ -191,8 +203,10 @@ class MemoryDict:
 
         return self.relocate_value(value)
 
-    def __setitem__(self, addr: MaybeRelocatable, value: MaybeRelocatable):
+    def __setitem__(self, addr: Union[MaybeRelocatable, int], value: Union[MaybeRelocatable, int]):
         assert not self._frozen, "Memory is frozen and cannot be changed."
+        addr = self._maybe_lift(addr)
+        value = self._maybe_lift(value)
         self._check_element(addr, "Memory address", KeyError)
         self._check_element(value, "Memory value", ValueError)
 
