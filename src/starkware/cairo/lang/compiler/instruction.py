@@ -34,6 +34,10 @@ class M31Instruction(BytecodeElement):
     def size(self):
         return 1
 
+    # Compatibility layer for old runner.
+    def __post_init__(self):
+        self._parsed_instruction = CompatibilityInstruction
+
 
 
 @dataclasses.dataclass

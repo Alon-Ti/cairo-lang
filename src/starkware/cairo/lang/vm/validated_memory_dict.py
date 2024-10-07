@@ -1,4 +1,4 @@
-from typing import Callable, Dict, List, Set, Tuple
+from typing import Callable, Dict, List, Set, Tuple, Optional
 
 from starkware.cairo.lang.vm.memory_dict import MemoryDict
 from starkware.cairo.lang.vm.relocatable import MaybeRelocatable, RelocatableValue
@@ -26,6 +26,9 @@ class ValidatedMemoryDict:
 
     def __getitem__(self, addr: MaybeRelocatable) -> MaybeRelocatable:
         return self.__memory[addr]
+
+    def get(self, addr: MaybeRelocatable) -> Optional[MaybeRelocatable]:
+        return self.__memory.get(addr)
 
     def __setitem__(self, addr: MaybeRelocatable, value: MaybeRelocatable):
         value %= self.prime

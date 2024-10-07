@@ -31,3 +31,6 @@ def decode_instruction(encoded: Tuple[int]) -> M31Instruction:
     opcode = IDX_TO_OPCODE[encoded[0]]
     operands = encoded[1:]
     return M31Instruction(opcode=opcode, operands=operands)
+
+def is_call_instruction(inst: M31Instruction) -> bool:
+    return IDX_TO_OPCODE[inst.opcode].startswith("call")

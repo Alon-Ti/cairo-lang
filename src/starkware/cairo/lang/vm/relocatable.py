@@ -76,20 +76,31 @@ class QM31:
     b:  CM31
     
     def __add__(self, other):
+        if isinstance(other, int):
+            other = QM31.from_int(other)
         return QM31(
             self.a + other.a, self.b + other.b
         )
 
     def __sub__(self, other):
+        if isinstance(other, int):
+            other = QM31.from_int(other)
         return QM31(
             self.a - other.a, self.b - other.b
         )
 
     def __mul__(self, other):
+        if isinstance(other, int):
+            other = QM31.from_int(other)
         return QM31(
             self.a * other.a + R * self.b * other.b,
             self.a * other.b + self.b * other.a
         )
+
+    def __div__(self, other):
+        if isinstance(other, int):
+            other = QM31.from_int(other)
+        return self * other.inv()
 
     def __hash__(self) -> int:
         return hash(("QM31", self.a, self.b))

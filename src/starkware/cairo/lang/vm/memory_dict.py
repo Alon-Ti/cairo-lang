@@ -105,6 +105,8 @@ class MemoryDict:
         return len(self.data)
 
     def _maybe_lift(self, num: Union[MaybeRelocatable, int]):
+        if isinstance(num, tuple) and len(num) == 4:
+            return QM31.from_tuple(num)
         if isinstance(num, int):
             return QM31.from_int(num)
         return num

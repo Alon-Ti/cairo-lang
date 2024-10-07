@@ -4,7 +4,7 @@ from functools import lru_cache
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from starkware.cairo.lang.compiler.encode import decode_instruction
-from starkware.cairo.lang.compiler.instruction import Instruction, Register
+from starkware.cairo.lang.compiler.instruction import M31Instruction, Register
 from starkware.cairo.lang.compiler.program import ProgramBase
 from starkware.cairo.lang.vm.builtin_runner import BuiltinRunner
 from starkware.cairo.lang.vm.memory_dict import MemoryDict
@@ -13,6 +13,7 @@ from starkware.cairo.lang.vm.trace_entry import TraceEntry
 from starkware.cairo.lang.vm.virtual_machine_base import RunContextBase, VirtualMachineBase
 from starkware.cairo.lang.vm.vm_exceptions import PureValueError
 from starkware.python.math_utils import div_mod
+from starkware.cairo.lang.vm.relocatable import QM31
 
 
 @dataclasses.dataclass
@@ -39,7 +40,7 @@ class RunContext(RunContextBase):
     fp: MaybeRelocatable
     prime: int
 
-    def get_instruction_encoding(self) -> Tuple[int, Optional[int]]:
+    def get_instruction_encoding(self) -> QM31:
         """
         Returns the encoded instruction (the value at pc) and the immediate value (the value at
         pc + 1, if it exists in the memory).
@@ -47,16 +48,12 @@ class RunContext(RunContextBase):
         instruction_encoding = self.memory[self.pc]
 
         assert isinstance(
-            instruction_encoding, int
-        ), f"Instruction should be an int. Found: {instruction_encoding}"
+            instruction_encoding, QM31
+        ), f"Instruction should be a QM31. Found: {instruction_encoding}"
 
-        imm_addr = (self.pc + 1) % self.prime
-        optional_imm = self.memory.get(imm_addr)
-        if not isinstance(optional_imm, int):
-            optional_imm = None
-        return instruction_encoding, optional_imm
+        return instruction_encoding
 
-    def compute_dst_addr(self, instruction: Instruction):
+    def compute_dst_addr(self, instruction: M31Instruction):
         base_addr: MaybeRelocatable
         if instruction.dst_register is Register.AP:
             base_addr = self.ap
@@ -66,7 +63,7 @@ class RunContext(RunContextBase):
             raise NotImplementedError("Invalid dst_register value")
         return (base_addr + instruction.off0) % self.prime
 
-    def compute_op0_addr(self, instruction: Instruction):
+    def compute_op0_addr(self, instruction: M31Instruction):
         base_addr: MaybeRelocatable
         if instruction.op0_register is Register.AP:
             base_addr = self.ap
@@ -76,16 +73,16 @@ class RunContext(RunContextBase):
             raise NotImplementedError("Invalid op0_register value")
         return (base_addr + instruction.off1) % self.prime
 
-    def compute_op1_addr(self, instruction: Instruction, op0: Optional[MaybeRelocatable]):
+    def compute_op1_addr(self, instruction: M31Instruction, op0: Optional[MaybeRelocatable]):
         base_addr: MaybeRelocatable
-        if instruction.op1_addr is Instruction.Op1Addr.FP:
+        if instruction.op1_addr is M31Instruction.Op1Addr.FP:
             base_addr = self.fp
-        elif instruction.op1_addr is Instruction.Op1Addr.AP:
+        elif instruction.op1_addr is M31Instruction.Op1Addr.AP:
             base_addr = self.ap
-        elif instruction.op1_addr is Instruction.Op1Addr.IMM:
+        elif instruction.op1_addr is M31Instruction.Op1Addr.IMM:
             assert instruction.off2 == 1, "In immediate mode, off2 should be 1."
             base_addr = self.pc
-        elif instruction.op1_addr is Instruction.Op1Addr.OP0:
+        elif instruction.op1_addr is M31Instruction.Op1Addr.OP0:
             assert op0 is not None, "op0 must be known in double dereference."
             base_addr = op0
         else:
@@ -151,44 +148,44 @@ class VirtualMachine(VirtualMachineBase):
         assert self._trace is not None, "Trace is disabled."
         return self._trace
 
-    def update_registers(self, instruction: Instruction, operands: Operands):
+    def update_registers(self, instruction: M31Instruction, operands: Operands):
         # Update fp.
-        if instruction.fp_update is Instruction.FpUpdate.AP_PLUS2:
+        if instruction.fp_update is M31Instruction.FpUpdate.AP_PLUS2:
             self.run_context.fp = self.run_context.ap + 2
-        elif instruction.fp_update is Instruction.FpUpdate.DST:
+        elif instruction.fp_update is M31Instruction.FpUpdate.DST:
             self.run_context.fp = operands.dst
-        elif instruction.fp_update is not Instruction.FpUpdate.REGULAR:
+        elif instruction.fp_update is not M31Instruction.FpUpdate.REGULAR:
             raise NotImplementedError("Invalid fp_update value")
 
         # Update ap.
-        if instruction.ap_update is Instruction.ApUpdate.ADD:
+        if instruction.ap_update is M31Instruction.ApUpdate.ADD:
             if operands.res is None:
                 raise NotImplementedError("Res.UNCONSTRAINED cannot be used with ApUpdate.ADD")
             self.run_context.ap += operands.res % self.prime
-        elif instruction.ap_update is Instruction.ApUpdate.ADD1:
+        elif instruction.ap_update is M31Instruction.ApUpdate.ADD1:
             self.run_context.ap += 1
-        elif instruction.ap_update is Instruction.ApUpdate.ADD2:
+        elif instruction.ap_update is M31Instruction.ApUpdate.ADD2:
             self.run_context.ap += 2
-        elif instruction.ap_update is not Instruction.ApUpdate.REGULAR:
+        elif instruction.ap_update is not M31Instruction.ApUpdate.REGULAR:
             raise NotImplementedError("Invalid ap_update value")
         self.run_context.ap = self.run_context.ap % self.prime
 
         # Update pc.
         # The pc update should be done last so that we will have the correct pc in case of an
         # exception during one of the updates above.
-        if instruction.pc_update is Instruction.PcUpdate.REGULAR:
+        if instruction.pc_update is M31Instruction.PcUpdate.REGULAR:
             self.run_context.pc += instruction.size
-        elif instruction.pc_update is Instruction.PcUpdate.JUMP:
+        elif instruction.pc_update is M31Instruction.PcUpdate.JUMP:
             if operands.res is None:
                 raise NotImplementedError("Res.UNCONSTRAINED cannot be used with PcUpdate.JUMP")
             self.run_context.pc = operands.res
-        elif instruction.pc_update is Instruction.PcUpdate.JUMP_REL:
+        elif instruction.pc_update is M31Instruction.PcUpdate.JUMP_REL:
             if operands.res is None:
                 raise NotImplementedError("Res.UNCONSTRAINED cannot be used with PcUpdate.JUMP_REL")
             if not isinstance(operands.res, int):
                 raise PureValueError("jmp rel", operands.res)
             self.run_context.pc += operands.res
-        elif instruction.pc_update is Instruction.PcUpdate.JNZ:
+        elif instruction.pc_update is M31Instruction.PcUpdate.JNZ:
             if self.is_zero(operands.dst):
                 self.run_context.pc += instruction.size
             else:
@@ -199,7 +196,7 @@ class VirtualMachine(VirtualMachineBase):
 
     def deduce_op0(
         self,
-        instruction: Instruction,
+        instruction: M31Instruction,
         dst: Optional[MaybeRelocatable],
         op1: Optional[MaybeRelocatable],
     ) -> Tuple[Optional[MaybeRelocatable], Optional[MaybeRelocatable]]:
@@ -208,13 +205,13 @@ class VirtualMachine(VirtualMachineBase):
         Deduces the value of op0 if possible (based on dst and op1). Otherwise, returns None.
         If res was already deduced, returns its deduced value as well.
         """
-        if instruction.opcode is Instruction.Opcode.CALL:
+        if instruction.opcode is M31Instruction.Opcode.CALL:
             return self.run_context.pc + instruction.size, None
-        elif instruction.opcode is Instruction.Opcode.ASSERT_EQ:
-            if (instruction.res is Instruction.Res.ADD) and (dst is not None) and (op1 is not None):
+        elif instruction.opcode is M31Instruction.Opcode.ASSERT_EQ:
+            if (instruction.res is M31Instruction.Res.ADD) and (dst is not None) and (op1 is not None):
                 return (dst - op1) % self.prime, dst  # type: ignore
             elif (
-                (instruction.res is Instruction.Res.MUL)
+                (instruction.res is M31Instruction.Res.MUL)
                 and isinstance(dst, int)
                 and isinstance(op1, int)
             ):
@@ -227,7 +224,7 @@ class VirtualMachine(VirtualMachineBase):
 
     def deduce_op1(
         self,
-        instruction: Instruction,
+        instruction: M31Instruction,
         dst: Optional[MaybeRelocatable],
         op0: Optional[MaybeRelocatable],
     ) -> Tuple[Optional[MaybeRelocatable], Optional[MaybeRelocatable]]:
@@ -236,15 +233,15 @@ class VirtualMachine(VirtualMachineBase):
         Deduces the value of op1 if possible (based on dst and op0). Otherwise, returns None.
         If res was already deduced, returns its deduced value as well.
         """
-        if instruction.opcode is Instruction.Opcode.ASSERT_EQ:
-            if (instruction.res is Instruction.Res.OP1) and (dst is not None):
+        if instruction.opcode is M31Instruction.Opcode.ASSERT_EQ:
+            if (instruction.res is M31Instruction.Res.OP1) and (dst is not None):
                 return dst, dst
             elif (
-                (instruction.res is Instruction.Res.ADD) and (dst is not None) and (op0 is not None)
+                (instruction.res is M31Instruction.Res.ADD) and (dst is not None) and (op0 is not None)
             ):
                 return (dst - op0) % self.prime, dst  # type: ignore
             elif (
-                (instruction.res is Instruction.Res.MUL)
+                (instruction.res is M31Instruction.Res.MUL)
                 and isinstance(dst, int)
                 and isinstance(op0, int)
                 and op0 != 0
@@ -254,29 +251,29 @@ class VirtualMachine(VirtualMachineBase):
 
     def compute_res(
         self,
-        instruction: Instruction,
+        instruction: M31Instruction,
         op0: MaybeRelocatable,
         op1: MaybeRelocatable,
     ) -> Optional[MaybeRelocatable]:
         """
         Computes the value of res if possible.
         """
-        if instruction.res is Instruction.Res.OP1:
+        if instruction.res is M31Instruction.Res.OP1:
             return op1
-        elif instruction.res is Instruction.Res.ADD:
+        elif instruction.res is M31Instruction.Res.ADD:
             return (op0 + op1) % self.prime
-        elif instruction.res is Instruction.Res.MUL:
+        elif instruction.res is M31Instruction.Res.MUL:
             if isinstance(op0, RelocatableValue) or isinstance(op1, RelocatableValue):
                 raise PureValueError("*", op0, op1)
             return (op0 * op1) % self.prime
-        elif instruction.res is Instruction.Res.UNCONSTRAINED:
+        elif instruction.res is M31Instruction.Res.UNCONSTRAINED:
             # In this case res should be the inverse of dst.
             # For efficiency, we do not compute it here.
             return None
         else:
             raise NotImplementedError("Invalid res value")
 
-    def compute_operands(self, instruction: Instruction) -> Tuple[Operands, List[int]]:
+    def compute_operands(self, instruction: M31Instruction) -> Tuple[Operands, List[int]]:
         """
         Computes the values of the operands. Deduces dst if needed.
         Returns:
@@ -339,9 +336,9 @@ class VirtualMachine(VirtualMachineBase):
 
         # Deduce dst.
         if dst is None:
-            if instruction.opcode is Instruction.Opcode.ASSERT_EQ and res is not None:
+            if instruction.opcode is M31Instruction.Opcode.ASSERT_EQ and res is not None:
                 dst = res
-            elif instruction.opcode is Instruction.Opcode.CALL:
+            elif instruction.opcode is M31Instruction.Opcode.CALL:
                 dst = self.run_context.fp
 
         # Force pulling dst from memory for soundness.
@@ -382,27 +379,27 @@ class VirtualMachine(VirtualMachineBase):
 
     @staticmethod
     @lru_cache(None)
-    def decode_instruction(encoded_inst: int, imm: Optional[int] = None) -> Instruction:
-        return decode_instruction(encoded_inst, imm)
+    def decode_instruction(encoded_inst: QM31) -> M31Instruction:
+        return decode_instruction(encoded_inst.to_tuple())
 
-    def decode_current_instruction(self) -> Instruction:
+    def decode_current_instruction(self) -> M31Instruction:
         try:
-            instruction_encoding, imm = self.run_context.get_instruction_encoding()
-            instruction = self.decode_instruction(instruction_encoding, imm)
+            instruction_encoding = self.run_context.get_instruction_encoding()
+            instruction = self.decode_instruction(instruction_encoding)
         except Exception as exc:
             raise self.as_vm_exception(exc) from None
 
         return instruction
 
-    def opcode_assertions(self, instruction: Instruction, operands: Operands):
-        if instruction.opcode is Instruction.Opcode.ASSERT_EQ:
+    def opcode_assertions(self, instruction: M31Instruction, operands: Operands):
+        if instruction.opcode is M31Instruction.Opcode.ASSERT_EQ:
             if operands.res is None:
                 raise NotImplementedError("Res.UNCONSTRAINED cannot be used with Opcode.ASSERT_EQ")
             if operands.dst != operands.res and not self.check_eq(operands.dst, operands.res):
                 raise Exception(
                     f"An ASSERT_EQ instruction failed: {operands.dst} != {operands.res}."
                 )
-        elif instruction.opcode is Instruction.Opcode.CALL:
+        elif instruction.opcode is M31Instruction.Opcode.CALL:
             return_pc = self.run_context.pc + instruction.size
             if operands.op0 != return_pc and not self.check_eq(operands.op0, return_pc):
                 raise Exception(
@@ -415,22 +412,28 @@ class VirtualMachine(VirtualMachineBase):
                     "Call failed to write return-fp (inconsistent dst): "
                     + f"{operands.dst} != {return_fp}. Did you forget to increment ap?"
                 )
-        elif instruction.opcode in [Instruction.Opcode.RET, Instruction.Opcode.NOP]:
+        elif instruction.opcode in [M31Instruction.Opcode.RET, M31Instruction.Opcode.NOP]:
             # Nothing to check.
             pass
         else:
             raise NotImplementedError(f"Unsupported opcode {instruction.opcode}.")
 
     def run_instruction(self, instruction):
-        try:
-            # Compute operands.
-            operands, operands_mem_addresses = self.compute_operands(instruction)
-        except Exception as exc:
-            raise self.as_vm_exception(exc) from None
-
-        try:
-            # Opcode assertions.
-            self.opcode_assertions(instruction, operands)
+        try: 
+            if instruction.opcode.startswith("addap"):
+                self.run_addap_instruction(instruction)
+            elif instruction.opcode.startswith("assert"):
+                self.run_assert_instruction(instruction)
+            elif instruction.opcode.startswith("call"):
+                self.run_call_instruction(instruction)
+            elif instruction.opcode.startswith("jmp"):
+                self.run_jmp_instruction(instruction)
+            elif instruction.opcode.startswith("jnz"):
+                self.run_jnz_instruction(instruction)
+            elif instruction.opcode == "ret":
+                self.run_ret_instruction()
+            else:
+                assert False, "Unsupported opcode {instruction.opcode}."
         except Exception as exc:
             raise self.as_vm_exception(exc) from None
 
@@ -447,13 +450,128 @@ class VirtualMachine(VirtualMachineBase):
         self.accessed_addresses.update(operands_mem_addresses)
         self.accessed_addresses.add(self.run_context.pc)
 
-        try:
-            # Update registers.
-            self.update_registers(instruction, operands)
-        except Exception as exc:
-            raise self.as_vm_exception(exc) from None
-
         self.current_step += 1
+
+    def run_addap_instruction(self, instruction: M31Instruction):
+        assert instruction.opcode == "addap_imm", f"Unsupported instruction: {instruction.opcode}"
+        assert instruction.operands[1:] = [0, 0, 0], f"Illegal operands for addap_imm: {instruction.operands}"
+
+        imm = instruction.operands[0]
+        self.run_context.ap += imm
+
+    def addr_and_val(self, op: str, off: int) -> Tuple[Optional[MaybeRelocatable], Optional[MaybeRelocatable]]:
+        if op == "imm":
+            return None, off
+        addr = None
+        if op == "ap":
+            addr = self.run_context.ap + off
+        if op == "fp":
+            addr = self.run_context.ap + off
+        self.accessed_addresses.add(addr)
+        return addr, self.validated_memory.get(addr)
+
+    def run_assert_instruction(self, instruction: M31Instruction):
+        opcode = instruction.opcode[len("assert_")]
+        appp = opcode.endswith("appp")
+        if appp:
+            self.run_context.ap += 1
+            opcode = opcode[:-len("_appp")]
+
+        for op0 in ["ap", "fp"]:
+            for op1 in ["ap", "fp", "imm"]:
+                for op2 in ["ap", "fp"]:
+                    if opcode == f"{op0}_add_{op1}_{op2}":
+                        return self.run_add(op0, op1, op2, instruction.operands)
+                    if opcode == f"{op0}_mul_{op1}_{op2}":
+                        return self.run_mul(op0, op1, op2, instruction.operands)
+                    if opcode == f"{op0}_imm":
+                        return self.run_assign_immediate(op0, instruction.operands)
+                    if opcode == f"{op0}_deref_{op1}":
+                        return self.run_equate(op0, op1, instruction.operands)
+                    if opcode == f"{op0}_double_deref_{op1}":
+                        return self.run_double_deref(op0, op1, instruction.operands)
+
+        assert False, f"Unsupported instruction: {instruction.opcode}"
+
+    def run_add(self, op0: str, op1: str, op2: str, operands: List[int]):
+        addr0, val0 = self.addr_and_val(op0, operands[0])
+        addr1, val1 = self.addr_and_val(op1, operands[1])
+        addr2, val2 = self.addr_and_val(op2, operands[2])
+
+        if val0 is not  None and val1 is not  None and val2 is not  None:
+            assert val0 == val1 + val2, f"Assertion failed: {val0} != {val1} + {val2}"
+
+        if val0 is None:
+            assert val1 is not None and val2 is not None, "Cannot deduce more than one operand"
+            self.validated_memory[addr0] = val1 + val2
+
+        if val1 is None:
+            assert val0 is not None and val2 is not None, "Cannot deduce more than one operand"
+            self.validated_memory[addr1] = val2 - val0
+
+        if val2 is None:
+            assert val1 is not None and val0 is not None, "Cannot deduce more than one operand"
+            self.validated_memory[addr2] = val1 - val0
+
+    def run_mul(self, op0: str, op1: str, op2: str, operands: List[int]):
+        addr0, val0 = self.addr_and_val(op0, operands[0])
+        addr1, val1 = self.addr_and_val(op1, operands[1])
+        addr2, val2 = self.addr_and_val(op2, operands[2])
+
+        if val0 is not  None and val1 is not  None and val2 is not  None:
+            assert val0 == val1 * val2, f"Assertion failed: {val0} != {val1} + {val2}"
+
+        if val0 is None:
+            assert val1 is not None and val2 is not None, "Cannot deduce more than one operand"
+            self.validated_memory[addr0] = val1 * val2
+
+        if val1 is None:
+            assert val0 is not None and val2 is not None, "Cannot deduce more than one operand"
+            self.validated_memory[addr1] = val2 / val0
+
+        if val2 is None:
+            assert val1 is not None and val0 is not None, "Cannot deduce more than one operand"
+            self.validated_memory[addr2] = val1 / val0
+
+    def run_assign_immediate(self, op0: str, operands: List[int]):
+        addr0, val0 = self.addr_and_val(op0, operands[0])
+        if val0 is not None:
+            assert val0 == operands[1], f"Assertion failed: {val0} != {operands[1]}"
+        if val0 is None:
+            self.validated_memory[addr0] = operands[1]
+
+    def run_equate(self, op0: str, op1: str, operands: List[int]):
+        addr0, val0 = self.addr_and_val(op0, operands[0])
+        addr1, val1 = self.addr_and_val(op1, operands[1])
+        if val0 is not None and val1 is not None:
+            assert val0 == val1, f"Assertion failed: {val0} != {val1}"
+        if val0 is None:
+            assert val1 is not None, "Cannot deduce more than one operand"
+            self.validated_memory[addr0] = val1
+        if val1 is None:
+            assert val0 is not None, "Cannot deduce more than one operand"
+            self.validated_memory[addr1] = val0
+
+    def run_double_deref(self, op0: str, op1: str, operands: List[int]):
+        addr0, val0 = self.addr_and_val(op0, operands[0])
+        inner, outer_addr = self.addr_and_val(op1, operands[1])
+        assert outer_addr is not None, "Address cannot be deduced for double dereference"
+        self.accessed_addresses.add(outer_addr)
+        outer_val = self.validated_memory.get(outer_addr)
+
+        if val0 is not None and inner is not None and outer_val is not None:
+            assert val0 == outer_val, f"Assertion failed: {val0} != {outer_val}"
+
+        if val0 is None:
+            assert outer_val is not None, "Cannot deduce more than one operand"
+            self.validated_memory[addr0] = outer_val
+
+        if outer_val is None:
+            assert val0 is not None, "Cannot deduce more than one operand"
+            self.validated_memory[outer_addr] = val0
+
+        
+
 
     def step(self):
         self.skip_instruction_execution = False
